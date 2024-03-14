@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:ui' as ui;
 
 void main() => runApp(
       const ProviderScope(
@@ -83,40 +85,95 @@ class LineSegment {
   }
 }
 
-class LineDrawingScreen extends ConsumerWidget {
-  const LineDrawingScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final linePoints = ref.watch(lineStateProvider);
-    return Scaffold(
-      body: GestureDetector(
-        onTapUp: (details) {
-          ref.read(lineStateProvider.notifier).addPoint(details.localPosition);
-        },
-        child: CustomPaint(
-          painter: LinePainter(linePoints),
-          size: Size.infinite,
-        ),
-      ),
-    );
-  }
-}
-
 class LinePainter extends CustomPainter {
   final List<Offset> points;
-  LinePainter(this.points);
+  final ui.Image image;
+  final Offset? currentCursorPos;
+
+  LinePainter(this.points, this.image, {this.currentCursorPos});
 
   @override
   void paint(Canvas canvas, Size size) {
-    var paint = Paint()
+    final paint = Paint()
       ..color = Colors.blue
       ..strokeWidth = 4;
     for (int i = 0; i < points.length - 1; i++) {
       canvas.drawLine(points[i], points[i + 1], paint);
     }
+
+    if (points.isNotEmpty && currentCursorPos != null) {
+      canvas.drawLine(points.last, currentCursorPos!, paint);
+    }
+
+    for (var point in points) {
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromCenter(
+            center: point,
+            width: image.width.toDouble(),
+            height: image.height.toDouble()),
+        image: image,
+        fit: BoxFit.fill,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class LineDrawingScreen extends ConsumerStatefulWidget {
+  const LineDrawingScreen({super.key});
+
+  @override
+  _LineDrawingScreenState createState() => _LineDrawingScreenState();
+}
+
+class _LineDrawingScreenState extends ConsumerState<LineDrawingScreen> {
+  ui.Image? _pointImage;
+  Offset? _currentCursorPos;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+
+  Future<void> _loadImage() async {
+    final ByteData data = await rootBundle.load('assets/images/point.png');
+    final Uint8List bytes = data.buffer.asUint8List();
+    final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo fi = await codec.getNextFrame();
+    setState(() {
+      _pointImage = fi.image;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final linePoints = ref.watch(lineStateProvider);
+    return Scaffold(
+      body: MouseRegion(
+        onHover: (details) {
+          setState(() {
+            _currentCursorPos = details.localPosition;
+          });
+        },
+        child: GestureDetector(
+          onTapUp: (details) {
+            ref
+                .read(lineStateProvider.notifier)
+                .addPoint(details.localPosition);
+          },
+          child: CustomPaint(
+            painter: _pointImage != null
+                ? LinePainter(linePoints, _pointImage!,
+                    currentCursorPos: _currentCursorPos)
+                : null,
+            size: Size.infinite,
+          ),
+        ),
+      ),
+    );
+  }
 }
