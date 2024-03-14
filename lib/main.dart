@@ -35,7 +35,11 @@ class LineStateNotifier extends StateNotifier<List<Offset>> {
         print('Действие отменено - новая линия пересечет ранее созданную');
       }
     } else {
-      state = [...state, point];
+      if (state.isNotEmpty && (point - state.first).distance < 10) {
+        state = [...state, state.first]; // Close the loop to form a polygon
+      } else {
+        state = [...state, point];
+      }
     }
   }
 
@@ -94,15 +98,28 @@ class LinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.drawColor(Colors.grey, BlendMode.srcOver);
+
     final paint = Paint()
       ..color = Colors.blue
       ..strokeWidth = 4;
-    for (int i = 0; i < points.length - 1; i++) {
-      canvas.drawLine(points[i], points[i + 1], paint);
+
+    if (points.length > 1) {
+      for (int i = 0; i < points.length - 1; i++) {
+        canvas.drawLine(points[i], points[i + 1], paint);
+      }
+      if (points.first == points.last && points.length > 2) {
+        // заполняем белым если фигура замкнута
+        final path = Path()..addPolygon(points, true);
+        canvas.drawPath(path, paint..color = Colors.white);
+      }
     }
 
-    if (points.isNotEmpty && currentCursorPos != null) {
-      canvas.drawLine(points.last, currentCursorPos!, paint);
+    if (points.isNotEmpty &&
+        currentCursorPos != null &&
+        points.first != points.last) {
+      canvas.drawLine(
+          points.last, currentCursorPos!, paint..color = Colors.blue);
     }
 
     for (var point in points) {
