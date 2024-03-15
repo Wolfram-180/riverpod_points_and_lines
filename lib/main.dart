@@ -72,6 +72,7 @@ class LineSegment {
 
   LineSegment(this.p1, this.p2);
 
+  // проверка пересечения
   bool intersects(LineSegment other) {
     double s1x, s1y, s2x, s2y;
     s1x = p2.dx - p1.dx;
